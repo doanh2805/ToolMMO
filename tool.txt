@@ -1,0 +1,76 @@
+function doGet(e) {
+  // Kiểm tra nếu không có tham số truyền vào
+  if (!e || !e.parameter) {
+    return ContentService.createTextOutput("Lỗi: Không có tham số được gửi")
+      .setMimeType(ContentService.MimeType.TEXT);
+  }
+  
+  var params = e.parameter;
+
+  // Bản đồ tham số thành cột trong Google Sheets (bắt đầu từ cột A)
+  var categoryMap = {
+    "gift_100": 1,   // Cột A - Gift 100
+    "gift_500": 2,   // Cột B - Gift 500
+    "gift_1000": 3,  // Cột C - Gift 1000
+    "check_loi": 4   // Cột D - Check Lỗi
+  };
+
+  for (var key in categoryMap) {
+    if (params[key]) {
+      var message = addLinkToSheet(params[key], categoryMap[key]);
+      return ContentService.createTextOutput(message)
+        .setMimeType(ContentService.MimeType.TEXT);
+    }
+  }
+
+  return ContentService.createTextOutput("Không tìm thấy tham số hợp lệ")
+    .setMimeType(ContentService.MimeType.TEXT);
+}
+
+function initializeSheet() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheetName = "Sheet1";
+  var sheet = ss.getSheetByName(sheetName);
+
+  if (!sheet) {
+    sheet = ss.insertSheet(sheetName);
+  }
+
+  // Xác định các tiêu đề cột (Bắt đầu từ cột A)
+  var headers = ["Gift 100", "Gift 500", "Gift 1000", "Check Lỗi"];
+  
+  // Ghi tiêu đề vào hàng đầu tiên nếu chưa có
+  if (sheet.getLastRow() === 0) {
+    var headerRange = sheet.getRange(1, 1, 1, headers.length);
+    headerRange.setValues([headers]);
+    headerRange.setBackground("#ccffcc"); // Màu xanh lá nhạt
+    headerRange.setFontWeight("bold");
+    sheet.setFrozenRows(1);
+    
+    // Cài đặt độ rộng cột
+    for (var i = 1; i <= headers.length; i++) {
+      sheet.setColumnWidth(i, 200);
+    }
+  }
+  
+  return sheet;
+}
+
+function addLinkToSheet(url, column) {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(10000); // Đợi tối đa 10 giây nếu có khóa khác đang chạy
+
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName("Sheet1") || initializeSheet();
+
+    url = url.trim(); // Xóa khoảng trắng
+
+    var newRow = sheet.getLastRow() + 1;
+    sheet.getRange(newRow, column).setValue(url);
+
+    return `Thêm mới thành công! URL đã được thêm vào cột ${column}`;
+  } finally {
+    lock.releaseLock();
+  }
+}
